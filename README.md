@@ -14,7 +14,40 @@ The tools generate human-review evidence. A clean flag report does not establish
 
 ## Install and test
 
-Use Python 3.11 in a clean virtual environment, then install requirements-dev.txt. Run pytest on tests/test_maskgate.py and tests/test_matteqc.py. All four tests use synthetic masks and temporary directories. The optional MP4 function requires ffmpeg installed separately.
+Use Python 3.11 in a clean virtual environment. Run the complete synthetic suite:
+
+```bash
+python3.11 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python -m pytest -q tests/test_maskgate.py tests/test_matteqc.py tests/test_qc_overlay.py
+```
+
+Expected result: **4 passed**. These tests generate masks and frames in temporary directories; no model, GPU or production footage is required.
+
+### Check your own PNG masks
+
+```python
+from pathlib import Path
+from basics_auto import maskgate, matteqc
+
+# actor_001/000000.png, actor_001/000001.png, actor_002/..., etc.
+ownership = maskgate.run(
+    Path("example_masks"),
+    out_json=Path("reports/mask_review.json"),
+)
+print("Mask review required:", ownership["review_required"])
+
+# Numbered 8- or 16-bit alpha PNGs; rough masks are optional.
+alpha = matteqc.run(
+    Path("example_alpha"),
+    out_json=Path("reports/matte_review.json"),
+    rough_dir=Path("example_rough"),
+)
+print("Matte review required:", alpha["review_required"])
+```
+
+The example paths are placeholders, not sample footage supplied with this repository. Mask ownership, alpha quality and coloured overlays are **review indicators** only, not automatic repairs or creative approval. The optional MP4 review function requires `ffmpeg` installed separately.
 
 ## Exclusions and caveats
 
