@@ -10,6 +10,8 @@ This package provides independently useful CPU-side quality-control utilities de
   Handles 1-, 8- and 16-bit PNG masks with a consistent 50% occupancy
   threshold, including before low-resolution downsampling. A constant
   8-bit threshold previously misclassified faint 16-bit alpha as ownership.
+  Compatible with Pillow 10's mode-`I` / signed-int32 decoding of
+  unsigned 16-bit PNGs, without accepting out-of-range signed pixels.
 - **matteqc**: read-only stray-alpha-island and partially transparent subject-core checks.
   Its optional rough SAM masks now share the maskgate's bit-depth-aware binary
   loader, so faint 16-bit pixels do not falsely enlarge the opaque subject
