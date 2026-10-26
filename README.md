@@ -11,6 +11,10 @@ This package provides independently useful CPU-side quality-control utilities de
   threshold, including before low-resolution downsampling. A constant
   8-bit threshold previously misclassified faint 16-bit alpha as ownership.
 - **matteqc**: read-only stray-alpha-island and partially transparent subject-core checks.
+  Its optional rough SAM masks now share the maskgate's bit-depth-aware binary
+  loader, so faint 16-bit pixels do not falsely enlarge the opaque subject
+  core. If rough masks and alpha differ in resolution, the binary mask is
+  resized with nearest-neighbour interpolation.
 - **qc**: synthetic-compatible colour actor overlays and optional local ffmpeg review MP4 output.
   Numbered `actor_001` etc. labels retain the original palette, while
   other actor IDs now map through SHA-256 so their review colours remain
@@ -32,10 +36,10 @@ Use Python 3.11 in a clean virtual environment. Run the complete synthetic suite
 python3.11 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements-dev.txt
-python -m pytest -q tests/test_maskgate.py tests/test_matteqc.py tests/test_qc_overlay.py tests/test_maskgate_bitdepth.py
+python -m pytest -q tests/test_maskgate.py tests/test_matteqc.py tests/test_qc_overlay.py tests/test_maskgate_bitdepth.py tests/test_matteqc_rough_bitdepth.py
 ```
 
-Expected result: **23 passed**, including create-only MP4 publishing, failed-encode cleanup and output-race safety. These use a mocked FFmpeg encoder; they are **not** a real video encoding quality or codec compatibility test. These tests generate 1-, 8- and 16-bit masks and frames in temporary directories; no model, GPU or production footage is required. The additional tests compare equivalent binary masks and synthetic actor-ownership flags across bit depths, as well as invalid downsample factors.
+Expected result: **28 passed**, including create-only MP4 publishing, failed-encode cleanup and output-race safety. These use a mocked FFmpeg encoder; they are **not** a real video encoding quality or codec compatibility test. These tests generate 1-, 8- and 16-bit masks and frames in temporary directories; no model, GPU or production footage is required. The additional tests compare equivalent binary masks and synthetic actor-ownership flags across bit depths, as well as invalid downsample factors. Five additional post-matting cases check faint 16-bit rough masks, half-intensity boundaries and matched 8-/16-bit reports after nearest-neighbour resizing.
 
 ### Check your own PNG masks
 

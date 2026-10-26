@@ -19,4 +19,4 @@ jobs:
       - name: Install isolated public requirements
         run: python -m pip install -r requirements-dev.txt
       - name: Synthetic mask QC and matte QC tests
-        run: python -B -m pytest -q tests/test_maskgate.py tests/test_matteqc.py tests/test_qc_overlay.py tests/test_maskgate_bitdepth.py
+        run: python -B -m pytest -q tests/test_maskgate.py tests/test_matteqc.py tests/test_qc_overlay.py tests/test_maskgate_bitdepth.py tests/test_matteqc_rough_bitdepth.py
