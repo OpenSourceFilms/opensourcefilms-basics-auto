@@ -17,6 +17,7 @@ import numpy as np
 from PIL import Image
 
 from .util import atomic_json
+from .maskgate import _load as _load_binary_mask
 
 
 @dataclass
@@ -67,14 +68,20 @@ def run(alpha_dir: Path, out_json: Path | None = None, rough_dir: Path | None = 
         if not re.fullmatch(r"\d+", f.stem):
             continue
         rough = None
+        a = _alpha(f)
         if rough_dir is not None and (rp := Path(rough_dir) / f.name).exists():
-            r = np.asarray(Image.open(rp).convert("L"))
-            a = _alpha(f)
-            if r.shape != a.shape:
-                r = cv2.resize(r, (a.shape[1], a.shape[0]), interpolation=cv2.INTER_NEAREST)
-            rough = r > 127
-        else:
-            a = _alpha(f)
+            # Preserve native 1-, 8- or 16-bit mask depth before thresholding.
+            # Pillow's I;16 -> L conversion saturates even low alpha to 255,
+            # incorrectly expanding the eroded 'opaque subject' core.
+            rough = _load_binary_mask(rp, lowres=1)
+            if rough.shape != a.shape:
+                # Nearest-neighbour interpolation preserves already-binary
+                # ownership. OpenCV resize does not accept boolean arrays.
+                rough = cv2.resize(
+                    rough.astype(np.uint8),
+                    (a.shape[1], a.shape[0]),
+                    interpolation=cv2.INTER_NEAREST,
+                ) > 0
         frames[int(f.stem)] = check_frame(a, rough, p)
     stray = sorted(f for f, r in frames.items() if r["stray"])
     partial = sorted(f for f, r in frames.items() if r.get("partial_core", 0) > p.partial_flag)
