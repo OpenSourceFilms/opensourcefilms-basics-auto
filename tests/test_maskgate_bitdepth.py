@@ -95,6 +95,68 @@ def test_full_maskgate_verdict_unchanged_across_uint8_and_uint16(tmp_path):
     assert 6 in reports[0]["flagged_frames"]
 
 
+
+def test_legacy_pillow_mode_i_int32_decoding_keeps_16bit_threshold(tmp_path, monkeypatch):
+    # Pillow 10 decodes some 16-bit grayscale PNGs as mode I / int32.
+    # Simulate that decoder even when CI installs a newer Pillow release.
+    values = np.array([[0, 1000, 32767, 32768, 65535]], dtype=np.uint16)
+    png = tmp_path / "legacy_uint16.png"
+    _write(png, values, 16)
+    original_open = Image.open
+
+    class LegacyDecodedPNG:
+        mode = "I"
+        format = "PNG"
+
+        def __init__(self, pixels):
+            self.pixels = pixels
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def __array__(self, dtype=None, copy=None):
+            return np.array(self.pixels, dtype=dtype if dtype is not None else np.int32,
+                            copy=True if copy is None else copy)
+
+    def legacy_open(path, *args, **kwargs):
+        with original_open(path, *args, **kwargs) as image:
+            return LegacyDecodedPNG(np.asarray(image).astype(np.int32))
+
+    monkeypatch.setattr(maskgate.Image, "open", legacy_open)
+    assert maskgate._load(png, lowres=1).tolist() == [[False, False, False, True, True]]
+
+
+@pytest.mark.parametrize("invalid", [-1, 65536])
+def test_legacy_mode_i_invalid_range_rejected(tmp_path, monkeypatch, invalid):
+    png = tmp_path / "legacy_invalid.png"
+    _write(png, np.full((4, 4), 1000, np.uint16), 16)
+    original_open = Image.open
+
+    class LegacyDecodedPNG:
+        mode = "I"
+        format = "PNG"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def __array__(self, dtype=None, copy=None):
+            return np.full((4, 4), invalid, dtype=np.int32)
+
+    def legacy_open(path, *args, **kwargs):
+        with original_open(path, *args, **kwargs):
+            return LegacyDecodedPNG()
+
+    monkeypatch.setattr(maskgate.Image, "open", legacy_open)
+    with pytest.raises(ValueError, match="outside 0..65535"):
+        maskgate._load(png, lowres=1)
+
+
 @pytest.mark.parametrize("bad_lowres", [0, -1, True, 1.5, "4", 100])
 def test_invalid_downsample_factors_fail_explicitly(tmp_path, bad_lowres):
     path = tmp_path / "mask.png"
