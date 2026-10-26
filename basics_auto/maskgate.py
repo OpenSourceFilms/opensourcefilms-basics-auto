@@ -37,11 +37,29 @@ class GateParams:
 
 
 def _load(p: Path, lowres: int) -> np.ndarray:
-    m = np.array(Image.open(p))
+    """Read binary mask PNGs with a threshold relative to their bit depth.
+
+    The original constant 127 is a midpoint only for 8-bit pixels. For
+    16-bit PNGs it would treat almost-transparent antialiasing as owned.
+    """
+    if type(lowres) is not int or lowres < 1:
+        raise ValueError("lowres must be a positive integer")
+    with Image.open(p) as image:
+        m = np.asarray(image)
     m = m[..., 0] if m.ndim == 3 else m
+    if m.ndim != 2:
+        raise ValueError("mask must have two spatial dimensions")
+    if m.dtype == np.dtype("bool"):
+        # PIL's 1-bit PNG mode is boolean; OpenCV cannot resize bool arrays.
+        m = m.astype(np.uint8) * 255
+    if m.dtype not in (np.dtype("uint8"), np.dtype("uint16")):
+        raise ValueError("mask PNG must use 1-, 8- or 16-bit pixels")
     if lowres > 1:
-        m = cv2.resize(m, (m.shape[1] // lowres, m.shape[0] // lowres), interpolation=cv2.INTER_AREA)
-    return m > 127
+        shape = (m.shape[1] // lowres, m.shape[0] // lowres)
+        if min(shape) < 1:
+            raise ValueError("lowres exceeds mask dimensions")
+        m = cv2.resize(m, shape, interpolation=cv2.INTER_AREA)
+    return m > (np.iinfo(m.dtype).max / 2)
 
 
 def load_masks(idfix_dir: Path, lowres: int, frames: range | None = None) -> dict[str, dict[int, np.ndarray]]:
