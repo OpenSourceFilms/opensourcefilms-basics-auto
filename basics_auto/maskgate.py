@@ -45,10 +45,20 @@ def _load(p: Path, lowres: int) -> np.ndarray:
     if type(lowres) is not int or lowres < 1:
         raise ValueError("lowres must be a positive integer")
     with Image.open(p) as image:
+        decoder_mode, image_format = image.mode, image.format
         m = np.asarray(image)
     m = m[..., 0] if m.ndim == 3 else m
     if m.ndim != 2:
         raise ValueError("mask must have two spatial dimensions")
+    if (m.dtype == np.dtype("int32") and decoder_mode == "I"
+            and image_format == "PNG"):
+        # Older supported Pillow releases decode unsigned 16-bit grayscale
+        # PNG as mode I / int32. Preserve the actual 16-bit numeric range
+        # before OpenCV resizing and half-occupancy thresholding. Do not
+        # silently reinterpret arbitrary signed 32-bit images.
+        if m.size == 0 or m.min() < 0 or m.max() > 65535:
+            raise ValueError("decoded 16-bit mask PNG values outside 0..65535")
+        m = m.astype(np.uint16)
     if m.dtype == np.dtype("bool"):
         # PIL's 1-bit PNG mode is boolean; OpenCV cannot resize bool arrays.
         m = m.astype(np.uint8) * 255

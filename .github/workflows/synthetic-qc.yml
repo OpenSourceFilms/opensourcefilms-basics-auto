@@ -8,6 +8,9 @@ permissions:
 jobs:
   offline-mask-qc:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        pillow: ["10.0.0", "12.3.0"]
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -17,6 +20,6 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install isolated public requirements
-        run: python -m pip install -r requirements-dev.txt
+        run: python -m pip install -r requirements-dev.txt "Pillow==${{ matrix.pillow }}"
       - name: Synthetic mask QC and matte QC tests
         run: python -B -m pytest -q tests/test_maskgate.py tests/test_matteqc.py tests/test_qc_overlay.py tests/test_maskgate_bitdepth.py tests/test_matteqc_rough_bitdepth.py
