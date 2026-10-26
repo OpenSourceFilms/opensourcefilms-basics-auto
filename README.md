@@ -9,6 +9,9 @@ This package provides independently useful CPU-side quality-control utilities de
 - **maskgate**: read-only temporal area-change, actor-contact and ownership-transfer warnings on binary actor mask PNG sequences.
 - **matteqc**: read-only stray-alpha-island and partially transparent subject-core checks.
 - **qc**: synthetic-compatible colour actor overlays and optional local ffmpeg review MP4 output.
+  Numbered `actor_001` etc. labels retain the original palette, while
+  other actor IDs now map through SHA-256 so their review colours remain
+  consistent across Python processes, reboots and hash seeds.
 
 The tools generate human-review evidence. A clean flag report does not establish shot quality or reliable actor tracking.
 
@@ -23,7 +26,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q tests/test_maskgate.py tests/test_matteqc.py tests/test_qc_overlay.py
 ```
 
-Expected result: **4 passed**. These tests generate masks and frames in temporary directories; no model, GPU or production footage is required.
+Expected result: **7 passed**. These tests generate masks and frames in temporary directories; no model, GPU or production footage is required.
 
 ### Check your own PNG masks
 

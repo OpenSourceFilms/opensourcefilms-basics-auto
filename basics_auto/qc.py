@@ -1,6 +1,7 @@
 """QC renders: identity review contact sheets, matte overlays, review videos."""
 from __future__ import annotations
 
+import hashlib
 import subprocess
 from pathlib import Path
 
@@ -15,7 +16,10 @@ def actor_colour(actor: str) -> tuple[int, int, int]:
     try:
         i = int(actor.rsplit("_", 1)[1]) - 1
     except (ValueError, IndexError):
-        i = abs(hash(actor))
+        # The builtin hash() is salted separately in each Python process.
+        # Persisted QC sheets must use the same colour for the same actor ID
+        # across different sessions and PYTHONHASHSEED values.
+        i = int.from_bytes(hashlib.sha256(actor.encode("utf-8")).digest()[:8], "big")
     r, g, b = PALETTE[i % len(PALETTE)]
     return (b, g, r)
 
