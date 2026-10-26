@@ -5,7 +5,6 @@ imported loader, and never contact VideoMaMa or production storage.
 """
 from __future__ import annotations
 
-import cv2
 import numpy as np
 import pytest
 from PIL import Image
