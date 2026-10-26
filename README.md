@@ -12,6 +12,12 @@ This package provides independently useful CPU-side quality-control utilities de
   Numbered `actor_001` etc. labels retain the original palette, while
   other actor IDs now map through SHA-256 so their review colours remain
   consistent across Python processes, reboots and hash seeds.
+  `actor_overlay_video()` now creates its video **only if the destination
+  does not already exist**, using a private temporary directory next to the
+  requested output. It does not reuse or delete a similarly named pre-existing
+  frame directory and never passes FFmpeg an overwrite flag. If encoding
+  fails, its own temporary files are removed and existing user media is
+  untouched.
 
 The tools generate human-review evidence. A clean flag report does not establish shot quality or reliable actor tracking.
 
@@ -26,7 +32,7 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q tests/test_maskgate.py tests/test_matteqc.py tests/test_qc_overlay.py
 ```
 
-Expected result: **7 passed**. These tests generate masks and frames in temporary directories; no model, GPU or production footage is required.
+Expected result: **11 passed**, including create-only MP4 publishing, failed-encode cleanup and output-race safety. These use a mocked FFmpeg encoder; they are **not** a real video encoding quality or codec compatibility test. These tests generate masks and frames in temporary directories; no model, GPU or production footage is required.
 
 ### Check your own PNG masks
 

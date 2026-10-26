@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 import cv2
@@ -97,26 +99,47 @@ def identity_sheets(out_dir: Path, per_frame, labels: dict, review: list[dict], 
 
 def actor_overlay_video(plate_dir: Path, actor_dirs: dict[str, Path], out_mp4: Path, fps: str,
                         frames: list[int], width: int = 1280) -> Path:
-    """Review MP4 of all corrected actors over the plate (8-bit review only)."""
-    tmp = out_mp4.with_suffix("")
-    tmp.mkdir(parents=True, exist_ok=True)
-    for i, fr in enumerate(frames):
-        plate = cv2.imread(str(Path(plate_dir) / f"{fr:06d}.png"))
-        h = round(plate.shape[0] * width / plate.shape[1])
-        plate = cv2.resize(plate, (width, h), interpolation=cv2.INTER_AREA)
-        masks = []
-        for a, d in actor_dirs.items():
-            m = cv2.imread(str(d / f"{fr:06d}.png"), cv2.IMREAD_UNCHANGED)
-            if m is None:
-                continue
-            m = cv2.resize(m if m.ndim == 2 else m[..., 0], (width, h), interpolation=cv2.INTER_AREA)
-            thr = 32768 if m.dtype == np.uint16 else 127
-            if (m > thr).any():
-                masks.append((a, m > thr, ""))
-        cv2.imwrite(str(tmp / f"{i:06d}.png"), overlay_frame(plate, masks, f"f{fr}"))
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-framerate", fps, "-i", str(tmp / "%06d.png"),
-                    "-c:v", "libx264", "-crf", "16", "-pix_fmt", "yuv420p", str(out_mp4)], check=True)
-    for p in tmp.glob("*.png"):
-        p.unlink()
-    tmp.rmdir()
+    """Create one 8-bit review MP4 without replacing existing files.
+
+    Generated PNGs and the ffmpeg output live in an isolated temporary
+    directory. A hard link publishes the completed MP4 with create-only
+    semantics, avoiding the old overwrite-and-delete behaviour.
+    """
+    out_mp4 = Path(out_mp4)
+    if out_mp4.exists() or out_mp4.is_symlink():
+        raise FileExistsError("review video already exists: " + str(out_mp4))
+    if not out_mp4.parent.is_dir() or out_mp4.parent.is_symlink():
+        raise ValueError("review video parent must be an existing directory")
+    if not frames or width < 1:
+        raise ValueError("review video needs frames and a positive width")
+    with tempfile.TemporaryDirectory(prefix=".basics-overlay-", dir=out_mp4.parent) as scratch:
+        tmp = Path(scratch)
+        for i, fr in enumerate(frames):
+            plate_path = Path(plate_dir) / f"{fr:06d}.png"
+            plate = cv2.imread(str(plate_path))
+            if plate is None:
+                raise ValueError("missing or unreadable plate: " + str(plate_path))
+            h = round(plate.shape[0] * width / plate.shape[1])
+            plate = cv2.resize(plate, (width, max(1, h)), interpolation=cv2.INTER_AREA)
+            h = plate.shape[0]
+            masks = []
+            for a, d in actor_dirs.items():
+                m = cv2.imread(str(Path(d) / f"{fr:06d}.png"), cv2.IMREAD_UNCHANGED)
+                if m is None:
+                    continue
+                m = cv2.resize(m if m.ndim == 2 else m[..., 0], (width, h), interpolation=cv2.INTER_AREA)
+                thr = 32768 if m.dtype == np.uint16 else 127
+                if (m > thr).any():
+                    masks.append((a, m > thr, ""))
+            dest = tmp / f"{i:06d}.png"
+            if not cv2.imwrite(str(dest), overlay_frame(plate, masks, f"f{fr}")):
+                raise IOError("cannot write temporary review frame: " + str(dest))
+        encoded = tmp / "overlay.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-n", "-framerate", fps, "-i", str(tmp / "%06d.png"),
+                        "-c:v", "libx264", "-crf", "16", "-pix_fmt", "yuv420p", str(encoded)], check=True)
+        if encoded.is_symlink() or not encoded.is_file():
+            raise IOError("ffmpeg did not create a regular review MP4")
+        # Both paths are on the same filesystem, because scratch was created
+        # inside out_mp4.parent. link() never overwrites an existing target.
+        os.link(encoded, out_mp4)
     return out_mp4
